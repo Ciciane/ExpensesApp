@@ -1,9 +1,12 @@
+import 'package:expenses/components/chart.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter/src/widgets/placeholder.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import './components/transaction_form.dart';
 import './components/transaction_list.dart';
+import 'components/chart.dart';
 import '../models/transaction.dart';
 
 main() => runApp(ExpensesApp());
@@ -11,8 +14,11 @@ main() => runApp(ExpensesApp());
 class ExpensesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final ThemeData tema = ThemeData();
+    /* SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp, //para que a tela fique somente modo portrait
+    ]);*/
 
+    final ThemeData tema = ThemeData();
     return MaterialApp(
       home: MyHomePage(),
       theme: tema.copyWith(
@@ -20,19 +26,22 @@ class ExpensesApp extends StatelessWidget {
           primary: Colors.purple,
           secondary: Colors.amber,
         ),
-        textTheme: tema.textTheme.copyWith(
-          headline6: TextStyle(
-            fontFamily: 'OpenSans',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        textTheme: ThemeData.light().textTheme.copyWith(
+              titleLarge: TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+              labelLarge: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
         appBarTheme: AppBarTheme(
           titleTextStyle: TextStyle(
-            fontFamily: 'OpenSans',
+            fontFamily: "OpenSans",
             fontSize: 20,
-            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -46,27 +55,23 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final _transactions = [
-    Transaction(
-      id: 't1',
-      title: 'Novo tênis de corrida',
-      value: 310.76,
-      date: DateTime.now(),
-    ),
-    Transaction(
-      id: 't2',
-      title: 'Conta de luz',
-      value: 211.30,
-      date: DateTime.now(),
-    ),
-  ];
+  final List<Transaction> _transactions = [];
+  bool _showChart = false;
 
-  _addTransaction(String title, double value) {
+  List<Transaction> get _recentTransactions {
+    return _transactions.where((tr) {
+      return tr.date.isAfter(DateTime.now().subtract(
+        Duration(days: 7),
+      ));
+    }).toList();
+  }
+
+  _addTransaction(String title, double value, DateTime date) {
     final newTransaction = Transaction(
       id: Random().nextDouble().toString(),
       title: title,
       value: value,
-      date: DateTime.now(),
+      date: date,
     );
 
     setState(() {
@@ -76,40 +81,68 @@ class _MyHomePageState extends State<MyHomePage> {
     Navigator.of(context).pop(); // para fechar o modal
   }
 
+  _removeTransaction(String id) {
+    setState(() {
+      _transactions.removeWhere((tr) =>
+          tr.id == id); //removeWhere se retornar "true" o elemento é removido
+    });
+  }
+
   _openTransactionFormModal(BuildContext context) {
     // vai abrir um modal para exibir os txFields
     showModalBottomSheet(
-        context: context,
-        builder: (_) {
-          return TransactionForm(_addTransaction);
-        });
+      context: context,
+      builder: (_) {
+        return TransactionForm(_addTransaction);
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final appBar = AppBar(
+      title: Text('Despesas Pessoais'),
+      actions: <Widget>[
+        IconButton(
+          icon: Icon(Icons.add),
+          onPressed: () => _openTransactionFormModal(context),
+        ),
+      ],
+    );
+    final avaliableHeight = MediaQuery.of(context).size.height -
+        appBar.preferredSize.height -
+        MediaQuery.of(context).padding.top;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Despesas Pessoais'),
-        actions: <Widget>[
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: () => _openTransactionFormModal(context),
-          ),
-        ],
-      ),
+      appBar: appBar,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Container(
-              width: double.infinity,
-              child: Card(
-                color: Colors.blue,
-                child: Text('Gráfico'),
-                elevation: 5,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Exibir gráfico'),
+                Switch(
+                  value: _showChart,
+                  onChanged: (value) {
+                    setState(() {
+                      _showChart = value;
+                    });
+                  },
+                ),
+              ],
             ),
-            TransactionList(_transactions),
+            if (_showChart)
+              Container(
+                height: avaliableHeight * 0.30,
+                child: Chart(_recentTransactions),
+              ),
+            if (!_showChart)
+              Container(
+                height: avaliableHeight * 0.70,
+                child: TransactionList(_transactions, _removeTransaction),
+              ),
           ],
         ),
       ),
